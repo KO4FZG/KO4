@@ -18,6 +18,9 @@ define('KO4_REPOS',   KO4_HOME . '/repos');
 define('KO4_PKGDB',   KO4_HOME . '/installed');
 define('KO4_HOOKS',   KO4_HOME . '/hooks');
 
+// All exception classes live in one file — load it eagerly before the autoloader runs
+require_once KO4_ROOT . '/src/Ko4Exception.php';
+
 // Autoloader — strips the leading "Ko4\" prefix so Ko4\Core\Config maps to src/Core/Config.php
 spl_autoload_register(function (string $class): void {
     $prefix = 'Ko4\\';
