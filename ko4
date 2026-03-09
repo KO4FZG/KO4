@@ -18,9 +18,15 @@ define('KO4_REPOS',   KO4_HOME . '/repos');
 define('KO4_PKGDB',   KO4_HOME . '/installed');
 define('KO4_HOOKS',   KO4_HOME . '/hooks');
 
-// Autoloader
+// Autoloader — strips the leading "Ko4\" prefix so Ko4\Core\Config maps to src/Core/Config.php
 spl_autoload_register(function (string $class): void {
-    $file = KO4_ROOT . '/src/' . str_replace('\\', '/', $class) . '.php';
+    $prefix = 'Ko4\\';
+    if (str_starts_with($class, $prefix)) {
+        $relative = substr($class, strlen($prefix));
+    } else {
+        $relative = $class;
+    }
+    $file = KO4_ROOT . '/src/' . str_replace('\\', '/', $relative) . '.php';
     if (file_exists($file)) {
         require_once $file;
     }
