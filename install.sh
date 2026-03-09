@@ -47,10 +47,11 @@ fi
 PHP_VER=$(php -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;')
 info "PHP $PHP_VER found."
 
-# Check PHP extensions
+# Check PHP extensions (case-insensitive — PHP lists PDO as "PDO", pdo_sqlite as "pdo_sqlite")
 MISSING_EXTS=()
+LOADED_EXTS=$(php -m 2>/dev/null | tr '[:upper:]' '[:lower:]')
 for ext in pdo pdo_sqlite json posix pcre; do
-    if ! php -m 2>/dev/null | grep -q "^$ext$"; then
+    if ! echo "$LOADED_EXTS" | grep -q "^${ext}$"; then
         MISSING_EXTS+=("$ext")
     fi
 done
