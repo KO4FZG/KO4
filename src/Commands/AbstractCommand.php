@@ -55,6 +55,25 @@ abstract class AbstractCommand
         return Terminal::confirm($message);
     }
 
+    /**
+     * Create an Installer, honouring any --root= override already set in config.
+     */
+    protected function makeInstaller(): \Ko4\Package\Installer
+    {
+        return new \Ko4\Package\Installer($this->config, $this->registry, $this->logger);
+    }
+
+    /**
+     * Show the active install root if it differs from /.
+     */
+    protected function showRootBanner(): void
+    {
+        $root = $this->config->get('install_root', '/');
+        if ($root !== '/' && $root !== '') {
+            Terminal::warn("Target root: [1m$root[0m");
+        }
+    }
+
     protected function printInstallPlan(array $plan): void
     {
         $toInstall = array_filter($plan, fn($p) => $p['action'] === 'install');

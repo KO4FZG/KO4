@@ -17,7 +17,59 @@ class Installer
         private PackageRegistry $registry,
         private Logger $logger
     ) {
-        $this->root = rtrim($config->get('install_root', '/'), '/');
+        $root = rtrim($config->get('install_root', '/'), '/');
+
+        // If root is a block device (e.g. /dev/sda1), find its mount point
+        if (str_starts_with($root, '/dev/')) {
+            $root = $this->resolveMountPoint($root);
+        }
+
+        $this->root = $root;
+    }
+
+    /**
+     * Find where a block device is currently mounted, or mount it temporarily.
+     */
+    private function resolveMountPoint(string $device): string
+    {
+        // Check if already mounted
+        $mounts = file('/proc/mounts', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+        foreach ($mounts as $line) {
+            $parts = explode(' ', $line);
+            if (($parts[0] ?? '') === $device) {
+                $mountPoint = $parts[1] ?? null;
+                if ($mountPoint) {
+                    Terminal::info("Using existing mount: $device → $mountPoint");
+                    return rtrim($mountPoint, '/');
+                }
+            }
+        }
+
+        // Not mounted — mount it temporarily
+        $mountPoint = '/mnt/ko4-target-' . basename($device);
+        if (!is_dir($mountPoint)) {
+            mkdir($mountPoint, 0755, true);
+        }
+
+        Terminal::step("Mounting $device at $mountPoint...");
+        $ret = null;
+        exec("mount " . escapeshellarg($device) . " " . escapeshellarg($mountPoint) . " 2>&1", $out, $ret);
+        if ($ret !== 0) {
+            throw new \RuntimeException(
+                "Failed to mount $device: " . implode(' ', $out) . "
+" .
+                "  Make sure the device has a filesystem and try: mount $device $mountPoint"
+            );
+        }
+
+        Terminal::info("Mounted $device at $mountPoint");
+
+        // Register a shutdown function to remind the user to unmount
+        register_shutdown_function(function() use ($device, $mountPoint) {
+            Terminal::warn("Remember to unmount when done: umount $mountPoint");
+        });
+
+        return $mountPoint;
     }
 
     /**

@@ -169,6 +169,51 @@ All paths can be overridden with environment variables (useful for chroot or sys
 
 ---
 
+## Installing to a Different Root (Sysroot / New Disk)
+
+The `--root=` flag lets you install packages into any directory or block device instead of the running system. This is designed for LFS install scripts, bootstrapping a new disk, or building a sysroot.
+
+```bash
+# Install into a directory
+ko4 install --root=/mnt/newdisk bash coreutils
+
+# Install directly to a block device — ko4 will mount it automatically
+ko4 install --root=/dev/sda1 bash coreutils glibc
+
+# Install your whole base system in one go
+ko4 import base-system.json --root=/dev/sda1 -y
+```
+
+**How it works:**
+
+- If `--root=` is a **directory**, files are deployed there directly (e.g. `/mnt/newdisk/usr/bin/bash`)
+- If `--root=` is a **block device** (e.g. `/dev/sda1`), ko4 checks `/proc/mounts` — if it's already mounted it uses that mount point, otherwise it mounts it automatically at `/mnt/ko4-target-sda1` and reminds you to unmount when done
+- Each target root gets its own **separate SQLite database** stored at `/var/lib/ko4/targets/dev_sda1.db`, so the package state for your new install is tracked independently from your host system
+- The host's `/var/lib/ko4` and package cache are always used regardless of `--root=`, so you don't re-download packages
+
+**Typical LFS install script pattern:**
+
+```bash
+#!/bin/bash
+# Partition and format
+mkfs.ext4 /dev/sda2
+mkswap /dev/sda3
+
+# Bootstrap base system packages into the new root
+ko4 install --root=/dev/sda2 -y \
+    linux-headers glibc glibc-devel \
+    bash coreutils binutils gcc make \
+    util-linux e2fsprogs
+
+# Install bootloader, kernel, etc.
+ko4 install --root=/dev/sda2 -y grub linux
+
+# Check what's installed on the target
+KO4_HOME=/var/lib/ko4 ko4 list   # (uses targets/dev_sda2.db automatically with --root)
+```
+
+---
+
 ## Usage
 
 ### Getting Started

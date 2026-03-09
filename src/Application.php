@@ -55,6 +55,16 @@ class Application
 
     public function run(): int
     {
+        // Check for --root= before bootstrap so dirs/DB are set up correctly
+        foreach ($this->argv as $arg) {
+            if (str_starts_with($arg, '--root=')) {
+                $root = rtrim(substr($arg, 7), '/');
+                if ($root !== '' && $root !== '/') {
+                    putenv("KO4_ROOT_OVERRIDE=$root");
+                }
+            }
+        }
+
         $this->bootstrap();
 
         $command = $this->argv[1] ?? 'help';
@@ -83,6 +93,16 @@ class Application
 
     private function bootstrap(): void
     {
+        $rootOverride = getenv('KO4_ROOT_OVERRIDE') ?: null;
+
+        // When installing to a custom root, use a separate DB scoped to that target
+        $dbPath = KO4_DB;
+        if ($rootOverride) {
+            $targetDb = KO4_HOME . '/targets/' . strtr(trim($rootOverride, '/'), '/', '_') . '.db';
+            @mkdir(dirname($targetDb), 0755, true);
+            $dbPath = $targetDb;
+        }
+
         // Ensure required directories exist with correct permissions
         foreach ([KO4_HOME, KO4_CACHE, KO4_REPOS, KO4_PKGDB, KO4_HOOKS] as $dir) {
             if (!is_dir($dir)) {
@@ -103,16 +123,23 @@ class Application
         }
 
         // Check DB file writability if it already exists
-        if (file_exists(KO4_DB) && !is_writable(KO4_DB)) {
+        if (file_exists($dbPath) && !is_writable($dbPath)) {
             throw new \RuntimeException(
-                "Database not writable: " . KO4_DB . "\n" .
-                "  Run: sudo chown $(whoami) " . KO4_DB . "\n" .
+                "Database not writable: $dbPath\n" .
+                "  Run: sudo chown $(whoami) $dbPath\n" .
                 "  Or run ko4 with sudo."
             );
         }
 
         $this->config = new Config(KO4_CONFIG);
-        $this->db     = new Database(KO4_DB);
+
+        // Apply root override into config so Installer picks it up
+        if ($rootOverride) {
+            $this->config->set('install_root', $rootOverride);
+            Terminal::warn("Installing to root: $rootOverride");
+        }
+
+        $this->db     = new Database($dbPath);
         $this->logger = new Logger(KO4_LOG);
 
         // Run DB migrations

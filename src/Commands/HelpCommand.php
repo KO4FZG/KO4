@@ -73,6 +73,8 @@ class HelpCommand extends AbstractCommand
         echo "  \033[36m--no-install\033[0m                    Build only, don't install\n";
         echo "  \033[36m--asdep\033[0m                         Mark install reason as dependency\n";
         echo "  \033[36m--cascade\033[0m                       Remove dependents too\n";
+        echo "  \033[36m--root=<path|device>\033[0m            Install into a directory or block device\n";
+        echo "                                  e.g. --root=/mnt/newdisk or --root=/dev/sda1\n";
         echo "\n";
 
         return 0;
