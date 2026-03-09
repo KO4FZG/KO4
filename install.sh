@@ -80,7 +80,12 @@ for dir in \
     "$KO4_CONF"
 do
     mkdir -p "$dir"
+    chmod 755 "$dir"
 done
+
+# Ensure the runtime dirs are writable by root (ko4 must run as root for installs)
+chown -R root:root "$KO4_HOME" "$KO4_CACHE"
+chmod -R 755 "$KO4_HOME" "$KO4_CACHE"
 info "Directories created."
 
 # ── Install files ────────────────────────────────────────────────
