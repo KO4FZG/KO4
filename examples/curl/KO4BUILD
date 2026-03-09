@@ -1,0 +1,47 @@
+[meta]
+name        = curl
+version     = 8.7.1
+release     = 1
+description = Command line tool and library for transferring data with URLs
+url         = https://curl.se
+license     = MIT
+arch        = x86_64
+deps        = openssl, zlib, ca-certificates
+makedeps    = cmake, perl, pkgconf
+provides    = libcurl
+
+[sources]
+https://curl.se/download/curl-${version}.tar.xz sha256:f91249be4e74b65d66e86d4c5c5dd6fd9b7ec09e8e3cfad3d47cb44a25c53c1
+
+[prepare]
+#!/bin/bash
+# No patches needed for this release
+
+[build]
+#!/bin/bash
+./configure \
+    --prefix=/usr          \
+    --sysconfdir=/etc      \
+    --localstatedir=/var   \
+    --with-openssl         \
+    --with-ca-path=/etc/ssl/certs \
+    --enable-ipv6          \
+    --enable-unix-sockets  \
+    --disable-static       \
+    --disable-ldap
+
+make $MAKEFLAGS
+
+[check]
+#!/bin/bash
+# make check  # uncomment to run tests
+
+[package]
+#!/bin/bash
+make DESTDIR="$PKGDIR" install
+
+# Install license
+install -Dm644 COPYING "$PKGDIR/usr/share/licenses/$name/LICENSE"
+
+# Remove static library if accidentally built
+find "$PKGDIR" -name '*.la' -delete

@@ -1,0 +1,43 @@
+#!/usr/bin/env php
+<?php
+/**
+ * ko4 - KO4OS Package Manager
+ * Entry point
+ */
+
+declare(strict_types=1);
+
+define('KO4_VERSION', '1.0.0');
+define('KO4_ROOT',    dirname(__FILE__));
+define('KO4_HOME',    getenv('KO4_HOME') ?: '/var/lib/ko4');
+define('KO4_CACHE',   getenv('KO4_CACHE') ?: '/var/cache/ko4');
+define('KO4_CONFIG',  getenv('KO4_CONFIG') ?: '/etc/ko4/ko4.conf');
+define('KO4_LOG',     getenv('KO4_LOG')    ?: '/var/log/ko4.log');
+define('KO4_DB',      KO4_HOME . '/ko4.db');
+define('KO4_REPOS',   KO4_HOME . '/repos');
+define('KO4_PKGDB',   KO4_HOME . '/installed');
+define('KO4_HOOKS',   KO4_HOME . '/hooks');
+
+// Autoloader
+spl_autoload_register(function (string $class): void {
+    $file = KO4_ROOT . '/src/' . str_replace('\\', '/', $class) . '.php';
+    if (file_exists($file)) {
+        require_once $file;
+    }
+});
+
+require_once KO4_ROOT . '/src/Application.php';
+
+try {
+    $app = new \Ko4\Application($argv);
+    exit($app->run());
+} catch (\Ko4\Ko4Exception $e) {
+    fwrite(STDERR, "\033[31m[✖] " . $e->getMessage() . "\033[0m\n");
+    exit($e->getCode() ?: 1);
+} catch (\Throwable $e) {
+    fwrite(STDERR, "\033[31m[✖] Fatal: " . $e->getMessage() . "\033[0m\n");
+    if (getenv('KO4_DEBUG')) {
+        fwrite(STDERR, $e->getTraceAsString() . "\n");
+    }
+    exit(1);
+}

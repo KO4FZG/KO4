@@ -1,0 +1,63 @@
+[meta]
+name        = vim
+version     = 9.1.0
+release     = 2
+description = Vi IMproved - enhanced vi editor
+url         = https://www.vim.org
+license     = VIM
+arch        = x86_64
+deps        = ncurses, acl
+makedeps    = python3, perl, ruby, tcl
+optdeps     = python3: Python scripting support, lua: Lua scripting support
+provides    = vi, xxd
+conflicts   = vi-legacy
+
+[sources]
+https://github.com/vim/vim/archive/v${version}/vim-${version}.tar.gz sha256:placeholder
+
+[build]
+#!/bin/bash
+
+# Vim needs this for reproducible builds
+export VIMRUNTIMEDIR=/usr/share/vim/vim91
+
+./configure \
+    --prefix=/usr           \
+    --localstatedir=/var/lib/vim \
+    --with-features=huge    \
+    --enable-multibyte      \
+    --enable-gpm            \
+    --enable-acl            \
+    --with-tlib=ncursesw    \
+    --enable-python3interp=yes \
+    --with-python3-command=python3 \
+    --enable-perlinterp=yes \
+    --disable-gui           \
+    --enable-cscope
+
+make $MAKEFLAGS
+
+[check]
+#!/bin/bash
+# echo ':q' | ./src/vim -e -s -u NONE
+
+[package]
+#!/bin/bash
+make DESTDIR="$PKGDIR" install
+
+# Make vi a symlink to vim
+ln -sf vim "$PKGDIR/usr/bin/vi"
+
+# Strip debug info
+find "$PKGDIR" -type f -executable | xargs strip --strip-unneeded 2>/dev/null || true
+
+# License
+install -Dm644 runtime/doc/uganda.txt "$PKGDIR/usr/share/licenses/$name/LICENSE"
+
+# Post-install hook: run helptags
+install -d "$PKGDIR/.hooks"
+cat > "$PKGDIR/.hooks/post-install" << 'HOOK'
+#!/bin/bash
+vim -u NONE -c "helptags /usr/share/vim/vim91/doc" -c q &>/dev/null || true
+HOOK
+chmod +x "$PKGDIR/.hooks/post-install"
