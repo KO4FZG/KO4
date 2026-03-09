@@ -83,11 +83,32 @@ class Application
 
     private function bootstrap(): void
     {
-        // Ensure required directories exist
+        // Ensure required directories exist with correct permissions
         foreach ([KO4_HOME, KO4_CACHE, KO4_REPOS, KO4_PKGDB, KO4_HOOKS] as $dir) {
             if (!is_dir($dir)) {
-                @mkdir($dir, 0755, true);
+                if (!mkdir($dir, 0755, true) && !is_dir($dir)) {
+                    throw new \RuntimeException(
+                        "Cannot create directory: $dir\n" .
+                        "  Run: sudo mkdir -p $dir && sudo chown $(whoami) $dir"
+                    );
+                }
             }
+            if (!is_writable($dir)) {
+                throw new \RuntimeException(
+                    "Directory not writable: $dir\n" .
+                    "  Run: sudo chown -R $(whoami) " . KO4_HOME . "\n" .
+                    "  Or run ko4 with sudo."
+                );
+            }
+        }
+
+        // Check DB file writability if it already exists
+        if (file_exists(KO4_DB) && !is_writable(KO4_DB)) {
+            throw new \RuntimeException(
+                "Database not writable: " . KO4_DB . "\n" .
+                "  Run: sudo chown $(whoami) " . KO4_DB . "\n" .
+                "  Or run ko4 with sudo."
+            );
         }
 
         $this->config = new Config(KO4_CONFIG);
