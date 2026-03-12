@@ -326,18 +326,21 @@ BASH;
     private function createArchive(string $pkgDir, string $pkgFile, array $meta, string $scriptPath): void
     {
         // Collect file list + checksums
+        // getRealPath() returns false for symlinks — use getPathname() as the safe fallback
         $files = [];
         $iter  = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($pkgDir, \RecursiveDirectoryIterator::SKIP_DOTS)
         );
         foreach ($iter as $f) {
-            $rel   = substr($f->getRealPath(), strlen($pkgDir));
-            $type  = $f->isLink() ? 'symlink' : ($f->isDir() ? 'dir' : 'file');
+            $realPath = $f->getRealPath();
+            $safePath = ($realPath !== false) ? $realPath : $f->getPathname();
+            $rel      = substr($safePath, strlen($pkgDir));
+            $type     = $f->isLink() ? 'symlink' : ($f->isDir() ? 'dir' : 'file');
             $files[] = [
                 'path'     => $rel,
                 'type'     => $type,
-                'checksum' => ($type === 'file') ? hash_file('sha256', $f->getRealPath()) : null,
-                'mode'     => decoct(fileperms($f->getRealPath()) & 0777),
+                'checksum' => ($type === 'file' && $realPath !== false) ? hash_file('sha256', $realPath) : null,
+                'mode'     => ($realPath !== false) ? decoct(fileperms($realPath) & 0777) : '755',
             ];
         }
 
