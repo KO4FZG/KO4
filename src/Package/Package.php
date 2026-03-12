@@ -56,7 +56,7 @@ class Package
         return $p;
     }
 
-    public static function fromLuxpkg(string $path): self
+    public static function fromKo4pkg(string $path): self
     {
         if (!file_exists($path)) {
             throw new \RuntimeException("Package file not found: $path");
@@ -71,12 +71,43 @@ class Package
     public static function fromArray(array $data): self
     {
         $p = new self();
-        foreach ($data as $k => $v) {
-            $prop = lcfirst(str_replace('_', '', ucwords($k, '_')));
-            if (property_exists($p, $prop)) {
-                $p->$prop = $v;
-            }
+
+        // Explicitly cast every typed property — meta arrays from KO4BUILD parsing
+        // are all strings, so a generic assignment loop breaks typed properties.
+        $p->id            = (int)($data['id']             ?? 0);
+        $p->name          = (string)($data['name']        ?? '');
+        $p->version       = (string)($data['version']     ?? '');
+        $p->release       = (int)($data['release']        ?? 1);
+        $p->arch          = (string)($data['arch']        ?? 'any');
+        $p->description   = (string)($data['description'] ?? '');
+        $p->url           = (string)($data['url']         ?? '');
+        $p->license       = (string)($data['license']     ?? '');
+        $p->size          = (int)($data['size']           ?? 0);
+        $p->installed     = (bool)($data['installed']     ?? false);
+        $p->installReason = (string)($data['install_reason'] ?? $data['installReason'] ?? 'explicit');
+        $p->installDate   = isset($data['install_date'])   ? (string)$data['install_date']   : null;
+        $p->buildDate     = isset($data['build_date'])     ? (string)$data['build_date']     : null;
+        $p->packager      = (string)($data['packager']    ?? '');
+        $p->checksum      = isset($data['checksum'])       ? (string)$data['checksum']       : null;
+        $p->hasSource     = (bool)($data['has_source']    ?? false);
+        $p->hasBinary     = (bool)($data['has_binary']    ?? true);
+
+        // Array fields — accept either comma-separated strings or real arrays
+        foreach (['groups', 'provides', 'conflicts', 'replaces'] as $field) {
+            $val = $data[$field] ?? [];
+            $p->$field = is_array($val) ? $val : self::splitList((string)$val);
         }
+
+        // deps can be ['name' => 'type'] map or a plain list from KO4BUILD parsing
+        $deps = $data['deps'] ?? [];
+        if (is_array($deps) && !empty($deps) && is_int(array_key_first($deps))) {
+            // Numeric array — convert to associative with type 'required'
+            $deps = array_fill_keys($deps, 'required');
+        }
+        $p->deps = $deps;
+
+        $p->files = $data['files'] ?? [];
+
         return $p;
     }
 
