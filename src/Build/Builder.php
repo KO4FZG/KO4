@@ -111,7 +111,10 @@ class Builder
                 $this->runShellSection($script['package'], $srcDir, $pkgDir, $meta, $this->jobs);
             }
 
-            // 7. Post-process: strip, compress man pages
+            // 7. Verify PKGDIR is not empty — catch DESTDIR mistakes early
+            $this->assertPkgDirNotEmpty($pkgDir, $meta['name'] ?? 'unknown');
+
+            // 8. Post-process: strip, compress man pages
             $this->postProcess($pkgDir);
 
             // 8. Create .ko4pkg archive
@@ -120,9 +123,19 @@ class Builder
 
             return ['path' => $pkgFile, 'version' => $version, 'name' => $name];
 
+        } catch (\Throwable $e) {
+            // Delete any partial .ko4pkg so a retry does a clean build
+            if (file_exists($pkgFile)) {
+                unlink($pkgFile);
+                Terminal::dim("  Removed partial package cache.");
+            }
+            throw $e;
         } finally {
             if ($this->config->get('keep_build_dir', false) === false) {
                 $this->rmdirRecursive($workDir);
+            } else {
+                Terminal::dim("  Build directory kept at: $workDir");
+                Terminal::dim("  Check \$PKGDIR at: $pkgDir");
             }
         }
     }
@@ -269,8 +282,11 @@ class Builder
 
         $env = <<<BASH
 #!/bin/bash
-set -e
 set -o pipefail
+
+# Treat unset variables as errors but NOT set -e — many build systems
+# (texinfo, gettext, etc.) return non-zero on sub-targets that are harmless.
+# Each section should explicitly check what matters.
 
 export name="{$name}"
 export version="{$ver}"
@@ -280,7 +296,13 @@ export BUILDDIR="{$bDir}"
 export JOBS={$jobs}
 export MAKEFLAGS="-j{$jobs}"
 
-cd "{$bDir}"
+# Helper: die with a clear message
+die() { echo "[ko4 build error] \$*" >&2; exit 1; }
+
+# Ensure PKGDIR exists
+mkdir -p "\$PKGDIR"
+
+cd "{$bDir}" || die "Cannot cd to build directory: {$bDir}"
 
 BASH;
 
@@ -321,6 +343,42 @@ BASH;
 
         // Remove libtool archives
         exec("find " . escapeshellarg($pkgDir) . " -name '*.la' -delete 2>/dev/null || true");
+    }
+
+    private function assertPkgDirNotEmpty(string $pkgDir, string $name): void
+    {
+        // Count real files (not just the dir itself or meta files)
+        $count = 0;
+        if (is_dir($pkgDir)) {
+            $iter = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($pkgDir, \RecursiveDirectoryIterator::SKIP_DOTS)
+            );
+            foreach ($iter as $f) {
+                $base = $f->getFilename();
+                if ($base === '.ko4meta' || $base === '.KO4BUILD') continue;
+                if (!$f->isDir()) $count++;
+            }
+        }
+
+        if ($count === 0) {
+            throw new BuildException(
+                "Package directory is empty after [package] section ran for '$name'.
+" .
+                "  This usually means DESTDIR was not honoured by the build system.
+" .
+                "  Check your KO4BUILD [package] section — common fixes:
+" .
+                "    1. Use:  make DESTDIR="\$PKGDIR" install
+" .
+                "    2. Some packages need: make install prefix="\$PKGDIR/usr"
+" .
+                "    3. Try adding: set -x  to [package] to trace what runs
+" .
+                "    4. Run manually: ko4 build --keep-build-dir $name  then inspect \$PKGDIR"
+            );
+        }
+
+        Terminal::dim("  Packaged $count file(s) into staging directory.");
     }
 
     private function createArchive(string $pkgDir, string $pkgFile, array $meta, string $scriptPath): void
