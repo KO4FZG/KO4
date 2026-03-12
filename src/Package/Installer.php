@@ -163,6 +163,8 @@ class Installer
             rsort($paths);
 
             foreach ($paths as $rel) {
+                // Skip any path that isn't a valid string
+                if (!is_string($rel) || $rel === '') continue;
                 $full = $this->root . $rel;
                 if (!file_exists($full) && !is_link($full)) continue;
 
@@ -243,7 +245,12 @@ class Installer
 
         foreach ($files as $file) {
             $i++;
-            $rel  = $file['path'];
+            $rel = $file['path'];
+
+            // Skip entries with invalid paths — can happen if .ko4meta was created
+            // by an older build where getRealPath() returned false for symlinks
+            if (!is_string($rel) || $rel === '') continue;
+
             $src  = $srcDir . '/' . ltrim($rel, '/');
             $dest = $this->root . $rel;
 
@@ -258,12 +265,11 @@ class Installer
             if ($file['type'] === 'dir') {
                 @mkdir($dest, octdec($file['mode'] ?? '755'), true);
             } elseif ($file['type'] === 'symlink') {
-                // Handle symlinks (stored as targets in meta)
-                // Skip — real symlinks extracted by tar already
+                // Real symlinks are already extracted by tar — nothing to do here
             } elseif (file_exists($src)) {
-                // Backup existing config files
+                // Backup existing config files rather than overwriting silently
                 if ($this->isConfigFile($rel) && file_exists($dest)) {
-                    rename($dest, $dest . '.luxorig');
+                    rename($dest, $dest . '.ko4orig');
                 }
                 copy($src, $dest);
                 if (isset($file['mode'])) {
@@ -326,7 +332,15 @@ class Installer
             \RecursiveIteratorIterator::CHILD_FIRST
         );
         foreach ($iter as $f) {
-            $f->isDir() ? @rmdir($f->getRealPath()) : @unlink($f->getRealPath());
+            $path = $f->getRealPath();
+            if ($path === false) {
+                $path = $f->getPathname();
+            }
+            if ($f->isDir() && !$f->isLink()) {
+                @rmdir($path);
+            } else {
+                @unlink($path);
+            }
         }
         @rmdir($dir);
     }
