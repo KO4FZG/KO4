@@ -17,10 +17,16 @@ class BuildCommand extends AbstractCommand
 
         $this->requireRoot();
 
-        $force    = $this->commandName === 'rebuild' || isset($flags['force']) || isset($flags['f']);
-        $install  = !isset($flags['no-install']);
-        $clean    = !isset($flags['no-clean']);
-        $version  = $flags['version'] ?? null;
+        $force         = $this->commandName === 'rebuild' || isset($flags['force']) || isset($flags['f']);
+        $install       = !isset($flags['no-install']);
+        $clean         = !isset($flags['no-clean']);
+        $version       = $flags['version'] ?? null;
+        $keepBuildDir  = isset($flags['keep-build-dir']) || isset($flags['k']);
+
+        if ($keepBuildDir) {
+            $this->config->set('keep_build_dir', true);
+            Terminal::dim("  Build directory will be kept after build.");
+        }
 
         $builder  = new Builder($this->config, $this->logger);
         $failed   = 0;
