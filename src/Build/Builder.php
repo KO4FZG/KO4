@@ -259,9 +259,13 @@ class Builder
         $dirs  = glob($srcDir . '/*/') ?: [$srcDir];
         $bDir  = realpath($dirs[0]) ?: $srcDir;
 
-        $script = tempnam('/tmp', 'luxbuild_');
-        $name   = $meta['name'] ?? '';
-        $ver    = $meta['version'] ?? '';
+        $script = tempnam('/tmp', 'ko4build_');
+        if ($script === false) {
+            throw new BuildException("Failed to create temporary build script in /tmp — check permissions.");
+        }
+
+        $name = $meta['name'] ?? '';
+        $ver  = $meta['version'] ?? '';
 
         $env = <<<BASH
 #!/bin/bash
@@ -286,8 +290,14 @@ BASH;
         $timeout = $this->config->get('build_timeout', 3600);
         $ret     = null;
 
-        passthru("timeout {$timeout} bash $script 2>&1", $ret);
-        unlink($script);
+        try {
+            passthru("timeout {$timeout} bash " . escapeshellarg($script) . " 2>&1", $ret);
+        } finally {
+            // Always clean up — is_string guards against false slipping past tempnam check
+            if (is_string($script) && file_exists($script)) {
+                unlink($script);
+            }
+        }
 
         if ($ret !== 0) {
             throw new BuildException("Build section failed with exit code $ret.");
@@ -360,8 +370,17 @@ BASH;
             \RecursiveIteratorIterator::CHILD_FIRST
         );
         foreach ($iter as $f) {
-            $f->isDir() ? rmdir($f->getRealPath()) : unlink($f->getRealPath());
+            $path = $f->getRealPath();
+            // getRealPath() returns false for broken symlinks — use getPathname() as fallback
+            if ($path === false) {
+                $path = $f->getPathname();
+            }
+            if ($f->isDir() && !$f->isLink()) {
+                @rmdir($path);
+            } else {
+                @unlink($path);
+            }
         }
-        rmdir($dir);
+        @rmdir($dir);
     }
 }
