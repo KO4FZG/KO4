@@ -347,7 +347,6 @@ BASH;
 
     private function assertPkgDirNotEmpty(string $pkgDir, string $name): void
     {
-        // Count real files (not just the dir itself or meta files)
         $count = 0;
         if (is_dir($pkgDir)) {
             $iter = new \RecursiveIteratorIterator(
@@ -361,24 +360,16 @@ BASH;
         }
 
         if ($count === 0) {
-            throw new BuildException(
-                "Package directory is empty after [package] section ran for '$name'.
-" .
-                "  This usually means DESTDIR was not honoured by the build system.
-" .
-                "  Check your KO4BUILD [package] section — common fixes:
-" .
-                "    1. Use:  make DESTDIR="\$PKGDIR" install
-" .
-                "    2. Some packages need: make install prefix="\$PKGDIR/usr"
-" .
-                "    3. Try adding: set -x  to [package] to trace what runs
-" .
-                "    4. Run manually: ko4 build --keep-build-dir $name  then inspect \$PKGDIR"
-            );
+            $msg  = "Package directory is empty after [package] section for '{$name}'.\n";
+            $msg .= "  DESTDIR was likely not honoured. Common fixes:\n";
+            $msg .= '    1. make DESTDIR="$PKGDIR" install' . "\n";
+            $msg .= '    2. make install prefix="$PKGDIR/usr"' . "\n";
+            $msg .= "    3. Add 'set -x' to [package] to trace execution\n";
+            $msg .= "    4. ko4 build --keep-build-dir {$name}  (then inspect \$PKGDIR)";
+            throw new BuildException($msg);
         }
 
-        Terminal::dim("  Packaged $count file(s) into staging directory.");
+        Terminal::dim("  Packaged {$count} file(s) into staging directory.");
     }
 
     private function createArchive(string $pkgDir, string $pkgFile, array $meta, string $scriptPath): void
